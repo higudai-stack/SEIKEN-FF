@@ -390,13 +390,13 @@
       font-weight: 700;
     }
 
-   .seiken-stamp{
-  position: absolute;
-  right: 6mm;
-  top: 8mm;
-  width: 40mm;   /* ← ここが肝 */
-  height: auto;
-    }
+     .seiken-stamp {
+      display: block;
+      width: 40mm;
+      height: auto;
+      margin-bottom: 4mm;
+}
+
 
 
     .greeting{
@@ -789,15 +789,19 @@
 <div class="to-name" id="outTo">株式会社　＿＿＿＿　御中</div>
 </div>
 <div class="issuer">
-  <img src="seiken-stamp.png" alt="株式会社精研" class="seiken-stamp">
+  <!-- ロゴ＋印鑑 -->
+  <img src="seiken-stamp.png" class="seiken-stamp" alt="株式会社精研 印影">
+
+  <!-- 会社情報 -->
   <div class="issuer-text">
     <div class="rowline"><div class="k">〒</div><div class="v">573-0102</div></div>
     <div class="rowline"><div class="k"></div><div class="v">大阪府枚方市長尾家具町3-12-3</div></div>
     <div class="rowline"><div class="k">TEL</div><div class="v">072-856-8253</div></div>
     <div class="rowline"><div class="k">FAX</div><div class="v">072-856-8254</div></div>
-    <div class="rowline"><div class="k">担当者</div><div class="v" id="outTantou">＿＿＿</div></div>
+    <div class="rowline"><div class="k">担当者</div><div class="v" id="outTantou"></div></div>
   </div>
 </div>
+
 
 </div>
 <div class="greeting">下記の通り、御見積申し上げます。</div>
