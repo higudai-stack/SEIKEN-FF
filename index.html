@@ -129,6 +129,14 @@
       color: #666;
     }
 
+
+    /* === 入力欄の幅調整（使い勝手改善） === */
+    #seidNo{
+      max-width: 280px; /* 見積番号：管理番号と同程度の幅に */
+    }
+    #toBase{
+      min-width: 320px; /* 会社名：長めに確保 */
+    }
     .opt-head{
       font-weight: 800;
       font-size: 13px;
@@ -525,13 +533,13 @@
 <div class="app-head">
 <div>
 <div class="app-title">精研 見積もり（彩・単頭機・少数頭機）</div>
-<div class="app-sub">TEST-7_1 - 彩統合版</div>
+<div class="app-sub">FREEFORM版 5.0 - Googleスプレッドシート連携</div>
 </div>
 </div>
 <div class="toolbar">
 <button class="btn primary" onclick="downloadPDF()">💾 保存（PDF）</button>
 <button class="btn" onclick="printPage()">🖨️ 印刷</button>
-<button class="btn" onclick="regenQuoteNo()">🔄 見積番号 再生成</button>
+<button class="btn" onclick="regenQuoteNo()">🔄 管理番号 再生成</button>
 <button class="btn" onclick="resetAll()">🗑️ リセット</button>
 </div>
 <div class="no-print">
@@ -539,16 +547,27 @@
 <div class="section-head"><div class="opt-head">基本情報</div><button class="btn mini" onclick="resetBasicInfoSection()" type="button">この欄をリセット</button></div>
 <div class="grid">
 <div>
-<label>見積番号（自動生成）</label>
-<input id="quoteNo" oninput="quoteNoManuallyEdited=true; applyAndRender()" placeholder="例：DH-TMAR-K1502C-20260114-153045" type="text"/>
-<div class="muted" style="margin-top:6px">
-              形式：担当者イニシャル-モデル名-日付-時刻（手入力可）
-            </div>
+<label>見積番号（お客様向け）</label>
+<div style="display:flex; gap:8px; align-items:center">
+<input id="seidNo" oninput="applyAndRender()" placeholder="例：SEID-0001" style="flex:1" type="text"/>
+<button class="btn" onclick="confirmAndSetSEID()" style="white-space:nowrap; font-size:13px; padding:8px 12px" type="button">次の番号</button>
+</div>
+<div class="muted" id="seidPreview" style="margin-top:4px">読み込み中...</div>
 </div>
 <div>
 <label>発行日</label>
 <input id="issueDate" onchange="onIssueDateChange()" type="date"/>
 </div>
+</div>
+<div class="grid" style="margin-top:10px">
+<div>
+<label>管理番号（自動生成）</label>
+<input id="quoteNo" oninput="quoteNoManuallyEdited=true; applyAndRender()" placeholder="例：DH-COMPOSER-20260204-153045" type="text"/>
+<div class="muted" style="margin-top:6px">
+              形式：担当者-モデル名-日付-時刻（DG選択時はグレード名、未選択時はFREEFORM）
+            </div>
+</div>
+<div></div>
 </div>
 <div class="row" style="margin-top:10px">
 <div style="flex:1">
@@ -852,8 +871,98 @@
   const FREEFORM_MODE = true;
 
   // =========================================================
-  // 見積番号：担当者イニシャル - 機種 - YYYYMMDD-HHMMSS
-  // 例）DH-TMAR-K1502C-20260114-153045
+  // SEID連番管理（Googleスプレッドシート連携）
+  // =========================================================
+  const SEID_API_URL = 'https://script.google.com/macros/s/AKfycbzHaKAsRWWGIsDq_g08DAZzLON7fCBlH3GhF605fOEtsnKxjNhNVIY9isLcPcmtYn5C/exec';
+
+  // 現在の番号を取得（プレビュー表示用）
+  async function getCurrentNumber(){
+    try{
+      const response = await fetch(`${SEID_API_URL}?action=getCurrent`);
+      const data = await response.json();
+      if(data.success){
+        return data.current;
+      }
+      return 0;
+    }catch(e){
+      console.error('番号取得エラー:', e);
+      return 0;
+    }
+  }
+
+  // 次の番号を取得（確定）
+  async function getNextNumber(){
+    try{
+      const response = await fetch(`${SEID_API_URL}?action=getNext`);
+      const data = await response.json();
+      if(data.success){
+        return data.number;
+      }
+      throw new Error(data.error || '番号取得に失敗しました');
+    }catch(e){
+      throw e;
+    }
+  }
+
+  // SEID番号のフォーマット（純粋連番）
+  function formatSEID(num){
+    return `SEID-${String(num).padStart(4, '0')}`;
+  }
+
+  // 「次の番号」ボタンクリック時
+  async function confirmAndSetSEID(){
+    const btn = event ? event.target : null;
+    const input = document.getElementById('seidNo');
+    
+    // ボタンを無効化（二重クリック防止）
+    if(btn) {
+      btn.disabled = true;
+      btn.textContent = '取得中...';
+    }
+
+    try{
+      const nextNum = await getNextNumber();
+      const nextSEID = formatSEID(nextNum);
+      
+      if(input){
+        input.value = nextSEID;
+        applyAndRender();
+      }
+      
+      // プレビュー更新
+      await updateSEIDPreview();
+      
+      alert(`SEID番号を取得しました：${nextSEID}`);
+    }catch(e){
+      alert(`エラー：SEID番号の取得に失敗しました。\n\n${e.message}\n\nインターネット接続を確認してください。`);
+    }finally{
+      // ボタンを元に戻す
+      if(btn) {
+        btn.disabled = false;
+        btn.textContent = '次の番号';
+      }
+    }
+  }
+
+  // プレビュー表示を更新
+  async function updateSEIDPreview(){
+    const preview = document.getElementById('seidPreview');
+    if(preview){
+      try{
+        const current = await getCurrentNumber();
+        const next = current + 1;
+        preview.textContent = `前回: ${formatSEID(current)} → 次回: ${formatSEID(next)}`;
+      }catch(e){
+        preview.textContent = '※ネット接続が必要です';
+      }
+    }
+  }
+
+  // =========================================================
+  // =========================================================
+  // 管理番号：担当者イニシャル - モデル名 - YYYYMMDD-HHMMSS
+  // 例）DH-COMPOSER-20260204-153045
+  // FREEFORM版：DG選択時はグレード名、未選択時はFREEFORM
   // =========================================================
   const DEFAULT_MACHINE_CODE = 'MODEL';
 
@@ -990,9 +1099,23 @@
   }
 
   function buildSaveFileName(){
-    const quote = (document.getElementById('quoteNo').value || '').trim() || `--${getMachineCodeForQuoteNo() || DEFAULT_MACHINE_CODE}----------`;
+    const seid = (document.getElementById('seidNo').value || '').trim();
+    const quote = (document.getElementById('quoteNo').value || '').trim();
     const customer = getCustomerNameForFile();
-    const parts = [quote, customer].filter(p => (p || '').trim() !== '');
+    
+    // SEID番号がある場合：SEID_管理番号_顧客名
+    // SEID番号がない場合：管理番号_顧客名（従来通り）
+    let parts = [];
+    if(seid){
+      parts.push(seid);
+      if(quote) parts.push(quote);
+      if(customer) parts.push(customer);
+    }else{
+      const quoteOrDefault = quote || `--${getMachineCodeForQuoteNo() || DEFAULT_MACHINE_CODE}----------`;
+      parts.push(quoteOrDefault);
+      if(customer) parts.push(customer);
+    }
+    
     return makeSafeFilePart(parts.join('_'));
   }
 
@@ -1951,7 +2074,19 @@
   }
 
   function getMachineCodeForQuoteNo(){
-    if(typeof FREEFORM_MODE !== 'undefined' && FREEFORM_MODE) return 'FREEFORM';
+    if(typeof FREEFORM_MODE !== 'undefined' && FREEFORM_MODE){
+      // FREEFORM版：DGが選択されていればグレード名、なければFREEFORM
+      const dgGrade = document.getElementById('dgGrade')?.value || '';
+      if(dgGrade){
+        // DG_SOFTWARE配列から該当グレードのnameを取得
+        const dgItem = DG_SOFTWARE.find(d => d.id === dgGrade);
+        if(dgItem){
+          // スペースを除去して簡潔に（例：Writer Plus → WriterPlus）
+          return dgItem.name.replace(/\s+/g, '');
+        }
+      }
+      return 'FREEFORM';
+    }
     const m = getSelectedMachine();
     // 見積番号用は刺繍範囲サフィックスを除く
     if(m.category === 'few'){
@@ -2909,6 +3044,11 @@ function addTradeInOption(container) {
     if(sel){
       sel.addEventListener('change', ()=>{
         renderDGLists();
+        // DGグレード変更時、見積番号が未編集なら自動更新
+        const q = document.getElementById('quoteNo');
+        if(!quoteNoManuallyEdited){
+          q.value = generateQuoteNoNow();
+        }
         applyAndRender();
       });
     }
@@ -3267,6 +3407,7 @@ function addTradeInOption(container) {
     updateDGSummary();
 
     const quoteNo = (document.getElementById('quoteNo').value || '').trim();
+    const seidNo = (document.getElementById('seidNo').value || '').trim();
     const issueDate = document.getElementById('issueDate').value;
 
     const delivery = document.getElementById('delivery').value.trim() || '受注後 約3カ月';
@@ -3278,7 +3419,12 @@ function addTradeInOption(container) {
     const tantou = document.getElementById('tantouSelect').value;
 
     document.getElementById('outTo').textContent = buildToText();
-    document.getElementById('outNo').textContent = quoteNo ? `No.${quoteNo}` : 'No.';
+    
+    // SEID番号を表示（管理番号は小さく括弧書き）
+    const noText = seidNo ? `No.${seidNo}` : (quoteNo ? `No.${quoteNo}` : 'No.');
+    const mgmtText = (seidNo && quoteNo) ? ` (管理: ${quoteNo})` : '';
+    document.getElementById('outNo').innerHTML = noText + (mgmtText ? `<span style="font-size:9px; font-weight:400; color:#666">${mgmtText}</span>` : '');
+    
     document.getElementById('outDate').textContent = formatReiwa(issueDate);
 
     document.getElementById('outDelivery').textContent = delivery;
@@ -3579,8 +3725,14 @@ updateOptionsList();
     loadFreeform();
     renderFreeform();
 
-    // 見積番号：空から開始（ユーザーが手動で入力）
-    document.getElementById('quoteNo').value = '';
+    // SEID番号プレビュー表示
+    updateSEIDPreview();
+    
+    // 見積番号（SEID）：空から開始（ユーザーが「次の番号」ボタンで生成）
+    document.getElementById('seidNo').value = '';
+    
+    // 管理番号：自動生成
+    document.getElementById('quoteNo').value = generateQuoteNoNow();
 
     applyAndRender();
   });
