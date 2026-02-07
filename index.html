@@ -870,93 +870,88 @@
   // === FREEFORMモード（機械本体・枠は使用しない） ===
   const FREEFORM_MODE = true;
 
+   // =========================================================
+  // SEID採番（Xserver create.php / SQLite連番）
   // =========================================================
-  // SEID連番管理（Googleスプレッドシート連携）
-  // =========================================================
-  const SEID_API_URL = 'https://script.google.com/macros/s/AKfycbzHaKAsRWWGIsDq_g08DAZzLON7fCBlH3GhF605fOEtsnKxjNhNVIY9isLcPcmtYn5C/exec';
+  const QUOTE_CREATE_API_URL = 'https://daihiguchi.art/estimate-system/api/quote/create.php';
+  const QUOTE_API_KEY = 'あなたのX-API-KEY';
 
-  // 現在の番号を取得（プレビュー表示用）
-  async function getCurrentNumber(){
-    try{
-      const response = await fetch(`${SEID_API_URL}?action=getCurrent`);
-      const data = await response.json();
-      if(data.success){
-        return data.current;
-      }
-      return 0;
-    }catch(e){
-      console.error('番号取得エラー:', e);
-      return 0;
+  async function createSeidOnBoot(force=false){
+    // 二重採番防止（リロードで毎回採番したい場合は、この2行を消してOK）
+    if(!force && sessionStorage.getItem('SEID_ALREADY_CREATED') === '1') return;
+
+    const issueDateEl = document.getElementById('issueDate');
+    const issueDate = (issueDateEl && issueDateEl.value) ? issueDateEl.value : (() => {
+      const d = new Date();
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth()+1).padStart(2,'0');
+      const dd = String(d.getDate()).padStart(2,'0');
+      const iso = `${yyyy}-${mm}-${dd}`;
+      if(issueDateEl) issueDateEl.value = iso;
+      return iso;
+    })();
+
+    const staff = (document.getElementById('tantouSelect')?.value || '').trim();
+    const customer = (document.getElementById('customer')?.value || '').trim(); // 無ければ空でOK
+
+    // ★起動時に「採番だけ」させたいので、最低限の情報だけ送る
+    const payload = {
+      issued_at: issueDate,
+      staff: staff,
+      customer_name: customer,
+      source: 'freeform-boot'
+    };
+
+    const res = await fetch(QUOTE_CREATE_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-KEY': QUOTE_API_KEY
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const raw = await res.text();
+    let data = null;
+    try { data = JSON.parse(raw); } catch(e){}
+
+    if(!res.ok){
+      console.error('SEID create failed', res.status, raw);
+      alert(`SEID採番に失敗しました（HTTP ${res.status}）\n${raw}`);
+      return;
     }
-  }
 
-  // 次の番号を取得（確定）
-  async function getNextNumber(){
-    try{
-      const response = await fetch(`${SEID_API_URL}?action=getNext`);
-      const data = await response.json();
-      if(data.success){
-        return data.number;
-      }
-      throw new Error(data.error || '番号取得に失敗しました');
-    }catch(e){
-      throw e;
+    // create.php の返却キー差分に耐える
+    const seid =
+      (data && (data.seid || data.quote_no || data.quoteNo || data.quote_number)) ||
+      (data && data.quote && (data.quote.seid || data.quote.quote_no)) ||
+      '';
+
+    if(!seid){
+      console.error('SEID not found', data);
+      alert('SEID採番レスポンスにSEIDが見つかりません。コンソールを確認してください。');
+      return;
     }
+
+    // ★フリーフォームの「見積番号（お客様向け）」に反映
+    const seidEl = document.getElementById('seidNo');
+    if(seidEl) seidEl.value = seid;
+
+    // 帳票反映
+    if(typeof applyAndRender === 'function') applyAndRender();
+
+    sessionStorage.setItem('SEID_ALREADY_CREATED', '1');
+    console.log('SEID created on boot:', seid);
   }
 
-  // SEID番号のフォーマット（純粋連番）
-  function formatSEID(num){
-    return `SEID-${String(num).padStart(4, '0')}`;
-  }
-
-  // 「次の番号」ボタンクリック時
+  // 「次の番号」ボタンは「再採番」にして使う（必要なければUIから消してもOK）
   async function confirmAndSetSEID(){
-    const btn = event ? event.target : null;
-    const input = document.getElementById('seidNo');
-    
-    // ボタンを無効化（二重クリック防止）
-    if(btn) {
-      btn.disabled = true;
-      btn.textContent = '取得中...';
-    }
-
-    try{
-      const nextNum = await getNextNumber();
-      const nextSEID = formatSEID(nextNum);
-      
-      if(input){
-        input.value = nextSEID;
-        applyAndRender();
-      }
-      
-      // プレビュー更新
-      await updateSEIDPreview();
-      
-      alert(`SEID番号を取得しました：${nextSEID}`);
-    }catch(e){
-      alert(`エラー：SEID番号の取得に失敗しました。\n\n${e.message}\n\nインターネット接続を確認してください。`);
-    }finally{
-      // ボタンを元に戻す
-      if(btn) {
-        btn.disabled = false;
-        btn.textContent = '次の番号';
-      }
-    }
+    const ok = confirm('SEIDを再採番します。よろしいですか？（番号が進みます）');
+    if(!ok) return;
+    sessionStorage.removeItem('SEID_ALREADY_CREATED');
+    await createSeidOnBoot(true);
   }
 
-  // プレビュー表示を更新
-  async function updateSEIDPreview(){
-    const preview = document.getElementById('seidPreview');
-    if(preview){
-      try{
-        const current = await getCurrentNumber();
-        const next = current + 1;
-        preview.textContent = `前回: ${formatSEID(current)} → 次回: ${formatSEID(next)}`;
-      }catch(e){
-        preview.textContent = '※ネット接続が必要です';
-      }
-    }
-  }
 
   // =========================================================
   // =========================================================
@@ -3725,12 +3720,10 @@ updateOptionsList();
     loadFreeform();
     renderFreeform();
 
-    // SEID番号プレビュー表示
-    updateSEIDPreview();
-    
-    // 見積番号（SEID）：空から開始（ユーザーが「次の番号」ボタンで生成）
-    document.getElementById('seidNo').value = '';
-    
+  // 起動時にSEID採番（Xserver create.php）
+    createSeidOnBoot();
+
+     
     // 管理番号：自動生成
     document.getElementById('quoteNo').value = generateQuoteNoNow();
 
