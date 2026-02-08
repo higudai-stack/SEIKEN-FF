@@ -875,8 +875,6 @@
   // =========================================================
   const QUOTE_CREATE_API_URL = 'https://daihiguchi.art/estimate-system/api/quote/create.php';
   const QUOTE_API_KEY = 'seiken-estimate_2026_key_01271315';
-
-
   async function createSeidOnBoot(force=false){
     // 二重採番防止（リロードで毎回採番したい場合は、この2行を消してOK）
     if(!force && sessionStorage.getItem('SEID_ALREADY_CREATED') === '1') return;
@@ -893,7 +891,14 @@
     })();
 
     const staff = (document.getElementById('tantouSelect')?.value || '').trim();
-    const customer = (document.getElementById('customer')?.value || '').trim(); // 無ければ空でOK
+    const customer = (document.getElementById('toBase')?.value || '').trim();
+
+    // create.php が staff と customer を必須にしているため、未入力なら採番しない
+if (!staff || !customer) {
+  console.log('SEID not created yet: staff/customer missing');
+  return;
+}
+
 
     // ★起動時に「採番だけ」させたいので、最低限の情報だけ送る
     const payload = {
@@ -3721,10 +3726,15 @@ updateOptionsList();
     loadFreeform();
     renderFreeform();
 
-  // 起動時にSEID採番（Xserver create.php）
+  
+
+     // 起動時は「揃っていれば」採番
     createSeidOnBoot();
 
-     
+     // 担当者 or 宛名が入った瞬間に採番（どちらも揃ったタイミングで通る）
+     document.getElementById('tantouSelect')?.addEventListener('change', () => createSeidOnBoot());
+     document.getElementById('toBase')?.addEventListener('input', () => createSeidOnBoot());
+
     // 管理番号：自動生成
     document.getElementById('quoteNo').value = generateQuoteNoNow();
 
