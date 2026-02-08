@@ -963,12 +963,27 @@ console.log('SEID not created yet:', {
     console.log('SEID created on boot:', seid);
   }
 
-  // 「次の番号」ボタンは「再採番」にして使う（必要なければUIから消してもOK）
+  // ★多重クリック防止フラグ
+  let SEID_CREATING = false;
+
+  // 「次の番号」ボタン:SEID採番(初回 or 再採番)
   async function SetSEID(){
-    const ok = confirm('SEIDを再採番します。よろしいですか？（番号が進みます）');
+    // 通信中チェック
+    if(SEID_CREATING) {
+      console.log('SEID採番処理中です。しばらくお待ちください。');
+      return;
+    }
+
+    const ok = confirm('SEID番号を採番します。よろしいですか?(番号が進みます)');
     if(!ok) return;
-    sessionStorage.removeItem('SEID_ALREADY_CREATED');
-    await createSeidOnBoot(true);
+
+    SEID_CREATING = true; // フラグセット
+    try {
+      sessionStorage.removeItem('SEID_ALREADY_CREATED');
+      await createSeidOnBoot(true);
+    } finally {
+      SEID_CREATING = false; // 必ず解除
+    }
   }
 
 
