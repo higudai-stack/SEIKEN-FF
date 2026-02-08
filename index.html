@@ -550,7 +550,7 @@
 <label>見積番号（お客様向け）</label>
 <div style="display:flex; gap:8px; align-items:center">
 <input id="seidNo" oninput="applyAndRender()" placeholder="例：SEID-0001" style="flex:1" type="text"/>
-<button class="btn" onclick="confirmAndSetSEID()" style="white-space:nowrap; font-size:13px; padding:8px 12px" type="button">次の番号</button>
+<button class="btn" onclick="SetSEID()" style="white-space:nowrap; font-size:13px; padding:8px 12px" type="button">次の番号</button>
 </div>
 <div class="muted" id="seidPreview" style="margin-top:4px">読み込み中...</div>
 </div>
@@ -875,87 +875,42 @@
   // =========================================================
   const QUOTE_CREATE_API_URL = 'https://daihiguchi.art/estimate-system/api/quote/create.php';
   const QUOTE_API_KEY = 'seiken-estimate_2026_key_01271315';
- async function createSeidOnBoot(force=false){
-  // 二重採番防止（同一タブ内）
-  if (!force && sessionStorage.getItem('SEID_ALREADY_CREATED') === '1') return;
+  async function createSeidOnBoot(force=false){
+    // 二重採番防止（リロードで毎回採番したい場合は、この2行を消してOK）
+    if(!force && sessionStorage.getItem('SEID_ALREADY_CREATED') === '1') return;
 
-  // 送信中の連打防止（1文字ごとの連打対策にも効く）
-  if (sessionStorage.getItem('SEID_CREATING') === '1') return;
+    const issueDateEl = document.getElementById('issueDate');
+    const issueDate = (issueDateEl && issueDateEl.value) ? issueDateEl.value : (() => {
+      const d = new Date();
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth()+1).padStart(2,'0');
+      const dd = String(d.getDate()).padStart(2,'0');
+      const iso = `${yyyy}-${mm}-${dd}`;
+      if(issueDateEl) issueDateEl.value = iso;
+      return iso;
+    })();
 
-  const issueDateEl = document.getElementById('issueDate');
-  const issueDate = (issueDateEl && issueDateEl.value) ? issueDateEl.value : (() => {
-    const d = new Date();
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth()+1).padStart(2,'0');
-    const dd = String(d.getDate()).padStart(2,'0');
-    const iso = `${yyyy}-${mm}-${dd}`;
-    if(issueDateEl) issueDateEl.value = iso;
-    return iso;
-  })();
+    const staff = (document.getElementById('tantouSelect')?.value || '').trim();
+    const customer = (document.getElementById('toBase')?.value || '').trim();
 
-  const staff = (document.getElementById('tantouSelect')?.value || '').trim();
-  const customer = (document.getElementById('toBase')?.value || '').trim();
-
-  // 必須が揃っていなければ採番しない
-  if (!staff || !customer) {
-    console.log('SEID not created yet (missing staff/customer)', { staff, customer });
-    return;
+    // create.php が staff と customer を必須にしているため、未入力なら採番しない
+if (!staff || !customer) {
+console.log('SEID not created yet:', {
+  staff: {
+    value: document.getElementById('tantouSelect')?.value,
+    type: typeof document.getElementById('tantouSelect')?.value,
+    length: document.getElementById('tantouSelect')?.value?.length
+  },
+  customer: {
+    value: document.getElementById('toBase')?.value,
+    type: typeof document.getElementById('toBase')?.value,
+    length: document.getElementById('toBase')?.value?.length
   }
+});
 
-  sessionStorage.setItem('SEID_CREATING', '1');
 
-  const payload = {
-    issued_at: issueDate,
-    staff: staff,
-    customer: customer,       // ★重要：customer_name ではなく customer
-    source: 'freeform-boot'
-  };
-
-  try {
-    const res = await fetch(QUOTE_CREATE_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-KEY': QUOTE_API_KEY
-      },
-      body: JSON.stringify(payload)
-    });
-
-    const raw = await res.text();
-    let data = null;
-    try { data = JSON.parse(raw); } catch(e){}
-
-    if(!res.ok){
-      console.error('SEID create failed', res.status, raw);
-      alert(`SEID採番に失敗しました（HTTP ${res.status}）\n${raw}`);
-      return;
-    }
-
-    // create.php の返却キー差分に耐える
-    const seid =
-      (data && (data.seid || data.quote_no || data.quoteNo || data.quote_number)) ||
-      (data && data.quote && (data.quote.seid || data.quote.quote_no)) ||
-      '';
-
-    if(!seid){
-      console.error('SEID not found', data);
-      alert('SEID採番レスポンスにSEIDが見つかりません。コンソールを確認してください。');
-      return;
-    }
-
-    const seidEl = document.getElementById('seidNo');
-    if(seidEl) seidEl.value = seid;
-
-    if(typeof applyAndRender === 'function') applyAndRender();
-
-    sessionStorage.setItem('SEID_ALREADY_CREATED', '1');
-    console.log('SEID created:', seid);
-
-  } finally {
-    sessionStorage.removeItem('SEID_CREATING');
-  }
+  return;
 }
-
 
 
     // ★起動時に「採番だけ」させたいので、最低限の情報だけ送る
@@ -3774,20 +3729,6 @@ updateOptionsList();
   initDGSoftwareUI();
   loadFreeform();
   renderFreeform();
-
-  document.getElementById('tantouSelect')?.addEventListener('change', createSeidOnBoot);
-  document.getElementById('toBase')?.addEventListener('blur',createSiedBoot);
-
-
-  // 起動時：揃っていれば採番（中で判定する）
-  createSeidOnBoot();
-
-  // ★ ここでイベント登録（超重要）
-  document.getElementById('tantouSelect')
-    ?.addEventListener('change', createSeidOnBoot);
-
-  document.getElementById('toBase')
-    ?.addEventListener('input', createSeidOnBoot);
 
   // 管理番号は独立して生成
   document.getElementById('quoteNo').value = generateQuoteNoNow();
