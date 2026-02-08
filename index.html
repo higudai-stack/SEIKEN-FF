@@ -3434,10 +3434,10 @@ function addTradeInOption(container) {
 
     document.getElementById('outTo').textContent = buildToText();
     
-    // SEID番号を表示（管理番号は小さく括弧書き）
-    const noText = seidNo ? `No.${seidNo}` : (quoteNo ? `No.${quoteNo}` : 'No.');
-    const mgmtText = (seidNo && quoteNo) ? ` (管理: ${quoteNo})` : '';
-    document.getElementById('outNo').innerHTML = noText + (mgmtText ? `<span style="font-size:9px; font-weight:400; color:#666">${mgmtText}</span>` : '');
+    
+    // SEID番号のみ表示（管理番号は帳票に記載しない）
+    const noText = seidNo ? `No.${seidNo}` : 'No.';
+    document.getElementById('outNo').textContent = noText;
     
     document.getElementById('outDate').textContent = formatReiwa(issueDate);
 
