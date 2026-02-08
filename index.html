@@ -895,7 +895,11 @@
 
     // create.php が staff と customer を必須にしているため、未入力なら採番しない
 if (!staff || !customer) {
-  console.log('SEID not created yet: staff/customer missing');
+  console.log('SEID not created yet:',
+  { staff: document.getElementById('tantouSelect')?.value,
+    customer: document.getElementById('toBase')?.value }
+);
+
   return;
 }
 
@@ -904,7 +908,7 @@ if (!staff || !customer) {
     const payload = {
       issued_at: issueDate,
       staff: staff,
-      customer_name: customer,
+      customer: customer,
       source: 'freeform-boot'
     };
 
@@ -3716,6 +3720,10 @@ updateOptionsList();
   initDGSoftwareUI();
   loadFreeform();
   renderFreeform();
+
+  document.getElementById('tantouSelect')?.addEventListener('change', createSeidOnBoot);
+  document.getElementById('toBase')?.addEventListener('input', createSeidOnBoot);
+
 
   // 起動時：揃っていれば採番（中で判定する）
   createSeidOnBoot();
