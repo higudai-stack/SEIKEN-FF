@@ -895,10 +895,19 @@
 
     // create.php が staff と customer を必須にしているため、未入力なら採番しない
 if (!staff || !customer) {
-  console.log('SEID not created yet:',
-  { staff: document.getElementById('tantouSelect')?.value,
-    customer: document.getElementById('toBase')?.value }
-);
+console.log('SEID not created yet:', {
+  staff: {
+    value: document.getElementById('tantouSelect')?.value,
+    type: typeof document.getElementById('tantouSelect')?.value,
+    length: document.getElementById('tantouSelect')?.value?.length
+  },
+  customer: {
+    value: document.getElementById('toBase')?.value,
+    type: typeof document.getElementById('toBase')?.value,
+    length: document.getElementById('toBase')?.value?.length
+  }
+});
+
 
   return;
 }
