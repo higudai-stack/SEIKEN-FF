@@ -3704,42 +3704,33 @@ updateOptionsList();
   }
 
 
-  // ===== 初期化 =====
-  window.addEventListener('DOMContentLoaded', ()=>{
-    const today = new Date();
-    document.getElementById('issueDate').valueAsDate = today;
-    
-    // デフォルト値を設定（元の仕様）
-    document.getElementById('delivery').value = '受注後 約3カ月';
-    document.getElementById('payment').value = '納入時 現金一括払い';
-    document.getElementById('valid').value = '30日';
+ window.addEventListener('DOMContentLoaded', () => {
+  const today = new Date();
+  document.getElementById('issueDate').valueAsDate = today;
 
-    loadOtherDynamic();
-    
-    // FREEFORM版では機種選択UIは不要（コメントアウト）
-    // initMachineUI();
+  document.getElementById('delivery').value = '受注後 約3カ月';
+  document.getElementById('payment').value = '納入時 現金一括払い';
+  document.getElementById('valid').value = '30日';
 
-    // 刺繍ソフト（DG）
-    initDGSoftwareUI();
+  loadOtherDynamic();
+  initDGSoftwareUI();
+  loadFreeform();
+  renderFreeform();
 
-    // FREEFORM 明細
-    loadFreeform();
-    renderFreeform();
+  // 起動時：揃っていれば採番（中で判定する）
+  createSeidOnBoot();
 
-  
+  // ★ ここでイベント登録（超重要）
+  document.getElementById('tantouSelect')
+    ?.addEventListener('change', createSeidOnBoot);
 
-     // 起動時は「揃っていれば」採番
-    createSeidOnBoot();
+  document.getElementById('toBase')
+    ?.addEventListener('input', createSeidOnBoot);
 
-     // 担当者 or 宛名が入った瞬間に採番（どちらも揃ったタイミングで通る）
-     document.getElementById('tantouSelect')?.addEventListener('change', () => createSeidOnBoot());
-     document.getElementById('toBase')?.addEventListener('input', () => createSeidOnBoot());
+  // 管理番号は独立して生成
+  document.getElementById('quoteNo').value = generateQuoteNoNow();
+});
 
-    // 管理番号：自動生成
-    document.getElementById('quoteNo').value = generateQuoteNoNow();
-
-    applyAndRender();
-  });
 </script>
 </body>
 </html>
