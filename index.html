@@ -915,11 +915,28 @@ console.log('SEID not created yet:', {
 
     // ★起動時に「採番だけ」させたいので、最低限の情報だけ送る
     const payload = {
-      issued_at: issueDate,
+      // expires_at（有効期限）：発行日 + 30日（YYYY-MM-DD）
+      expires_at: (() => {
+        const d = new Date(issueDate);
+        d.setDate(d.getDate() + 30);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth()+1).padStart(2,'0');
+        const dd = String(d.getDate()).padStart(2,'0');
+        return `${yyyy}-${mm}-${dd}`;
+      })(),
+
       staff: staff,
       customer: customer,
-      source: 'freeform-boot'
-    };
+
+      // 管理番号（手入力/自動生成の quoteNo を admin_quote_no として保存）
+      admin_quote_no: (document.getElementById('quoteNo')?.value || '').trim(),
+
+      // 任意：後で追跡しやすいメタ
+      data: {
+        issued_at: issueDate,
+        source: 'freeform'
+      }
+    }
 
     const res = await fetch(QUOTE_CREATE_API_URL, {
       method: 'POST',
