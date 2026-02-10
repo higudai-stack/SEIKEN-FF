@@ -870,6 +870,29 @@
   // === FREEFORMモード（機械本体・枠は使用しない） ===
   const FREEFORM_MODE = true;
 
+
+  // =========================================================
+  // 有効期限計算関数（発行日 + 有効期限日数 → YYYY-MM-DD）
+  // =========================================================
+  function calculateValidUntil() {
+    const issueDate = document.getElementById('issueDate').value;
+    const validText = document.getElementById('valid').value.trim() || '30日';
+    
+    // 「30日」→ 30 に変換（数値以外を削除）
+    const validDays = parseInt(validText.replace(/[^0-9]/g, '')) || 30;
+    
+    if (!issueDate) return '';
+    
+    const d = new Date(issueDate);
+    d.setDate(d.getDate() + validDays);
+    
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
    // =========================================================
   // SEID採番（Xserver create.php / SQLite連番）
   // =========================================================
@@ -916,13 +939,16 @@ console.log('SEID not created yet:', {
 
 
     // ★採番時にDBへ保存する最低限の情報（index4.htm と同等）
-    // 有効期限：今日+30日（YYYY-MM-DD）
-    const d2 = new Date();
-    d2.setDate(d2.getDate() + 30);
-    const yyyy2 = d2.getFullYear();
-    const mm2 = String(d2.getMonth() + 1).padStart(2, '0');
-    const dd2 = String(d2.getDate()).padStart(2, '0');
-    const expiresYmd = `${yyyy2}-${mm2}-${dd2}`;
+    // 有効期限：発行日 + 画面入力値
+    const expiresYmd = calculateValidUntil() || (() => {
+      const d2 = new Date();
+      d2.setDate(d2.getDate() + 30);
+      const yyyy2 = d2.getFullYear();
+      const mm2 = String(d2.getMonth() + 1).padStart(2, '0');
+      const dd2 = String(d2.getDate()).padStart(2, '0');
+      return `${yyyy2}-${mm2}-${dd2}`;
+    })();
+
 
     const payload = {
       api_key: QUOTE_API_KEY,
@@ -992,7 +1018,7 @@ console.log('SEID not created yet:', {
   let SEID_CREATING = false;
 
   // 「次の番号」ボタン:SEID採番(初回 or 再採番)
-  async async function SetSEID(){
+  async function SetSEID(){
     // 通信中チェック
     if(SEID_CREATING) {
       console.log('SEID採番処理中です。しばらくお待ちください。');
@@ -1228,7 +1254,7 @@ console.log('SEID not created yet:', {
       const filename = buildSaveFileName() + '.pdf';
       const estimateNumber = (document.getElementById('quoteNo').value || '').trim();
       const customerName = getCustomerNameForFile();
-      const validUntil = document.getElementById('issueDate').value || '';
+      const validUntil = calculateValidUntil();
       const createdBy = document.getElementById('tantouSelect').value || '';
       
       // 見積作成通知をサーバーに送信
