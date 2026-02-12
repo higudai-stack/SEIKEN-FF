@@ -10,12 +10,6 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
 <title>精研 見積もり</title>
-<!-- PDFダウンロード（任意） -->
-<script defer="" src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-<script defer="" src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-<!-- PDFダウンロード（任意） -->
-<script defer="" src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-<script defer="" src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <style>
     :root{
       --border:#333;
@@ -1201,91 +1195,65 @@ console.log('SEID not created yet:', {
 
   
   async function downloadPDF(){
-    // html2canvas + jsPDF でPDFを生成（長文は自動で複数ページ）
-    if(!window.html2canvas || !window.jspdf){
-      alert('PDF生成（ダウンロード）はネット接続が必要です。\n「印刷」をご利用ください。');
-      return;
-    }
-
+    // テキストPDF（ブラウザのPDF保存）で出力する：
+    // 画像化（html2canvas/jsPDF）は使わず、印刷エンジンに任せることで
+    // 文字選択できるPDFになり、容量も軽くなります。
+    
     applyAndRender();
 
-    // ★PDF生成時も「印刷と同じレイアウト/改ページ」に寄せる
+    const fileName = buildSaveFileName();
+    const prevTitle = document.title;
+
     document.body.classList.add('pdf-mode');
+    document.title = fileName;
 
-    try{
-      // レイアウト反映を1フレーム待つ
-      await new Promise(requestAnimationFrame);
+    const cleanup = () => {
+      document.title = prevTitle;
+      document.body.classList.remove('pdf-mode');
+    };
 
-      const el = document.getElementById('paper');
-      const canvas = await window.html2canvas(el, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff'
-      });
-      const imgData = canvas.toDataURL('image/png');
+    window.addEventListener('afterprint', cleanup, { once:true });
 
-      const { jsPDF } = window.jspdf;
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-
-      const pageW = 210;
-      const pageH = 297;
-
-      const imgW = pageW;
-      const imgH = canvas.height * (imgW / canvas.width);
-
-      if(imgH <= pageH){
-        pdf.addImage(imgData, 'PNG', 0, 0, imgW, imgH);
-      }else{
-        // 1枚の長い画像をA4高さごとに切り出してページ追加
-        let y = 0;
-        let remaining = imgH;
-        while(remaining > 0){
-          pdf.addImage(imgData, 'PNG', 0, -y, imgW, imgH);
-          remaining -= pageH;
-          y += pageH;
-          if(remaining > 0) pdf.addPage();
-        }
-      }
-
-      pdf.save(buildSaveFileName() + '.pdf');
-      
-      // 見積情報を取得
-      const filename = buildSaveFileName() + '.pdf';
+    // ここで「PDFに保存」を選択して保存してください（Windows/Chrome/Edge）
+    window.print();
+    
+    // 見積作成通知をサーバーに送信（印刷ダイアログ起動後、バックグラウンドで実行）
+    try {
+      const filename = fileName + '.pdf';
       const estimateNumber = (document.getElementById('quoteNo').value || '').trim();
       const customerName = getCustomerNameForFile();
       const validUntil = calculateValidUntil();
       const createdBy = document.getElementById('tantouSelect').value || '';
       
-      // 見積作成通知をサーバーに送信
-        const notifyData = {
-            api_key: 'seiken-estimate_2026_key_01271315',
-            estimate_no: estimateNumber,
-            customer: customerName,
-            valid_until: validUntil,
-            created_by: createdBy,
-            pdf_name: filename
-        };
+      const notifyData = {
+          api_key: 'seiken-estimate_2026_key_01271315',
+          estimate_no: estimateNumber,
+          customer: customerName,
+          valid_until: validUntil,
+          created_by: createdBy,
+          pdf_name: filename
+      };
 
-        fetch('https://daihiguchi.art/notify.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-API-KEY': 'seiken-estimate_2026_key_01271315'
-            },
-            body: JSON.stringify(notifyData)
-        })
-        .then(response => response.json())
-        .then(data => {
-            console.log('✅ 見積作成通知送信成功:', data);
-            if (data.ok && data.mail_sent) {
-                console.log('📧 メール送信成功:', data.mail_to);
-            }
-        })
-        .catch(error => {
-            console.error('❌ 通知送信エラー:', error);
-        });
-    }finally{
-      document.body.classList.remove('pdf-mode');
+      fetch('https://daihiguchi.art/notify.php', {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json',
+              'X-API-KEY': 'seiken-estimate_2026_key_01271315'
+          },
+          body: JSON.stringify(notifyData)
+      })
+      .then(response => response.json())
+      .then(data => {
+          console.log('✅ 見積作成通知送信成功:', data);
+          if (data.ok && data.mail_sent) {
+              console.log('📧 メール送信成功:', data.mail_to);
+          }
+      })
+      .catch(error => {
+          console.error('❌ 通知送信エラー:', error);
+      });
+    } catch(error) {
+      console.error('❌ 通知処理エラー:', error);
     }
   }
 
